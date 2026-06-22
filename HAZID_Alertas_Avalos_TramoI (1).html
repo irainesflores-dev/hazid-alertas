@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HAZID">
+<title>HAZID Alertas – Av. Ávalos Tramo I</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d1117;color:#e6edf3;font-family:-apple-system,'Segoe UI',system-ui,sans-serif}
+@keyframes rp{0%{transform:scale(1);opacity:.7}100%{transform:scale(3.5);opacity:0}}
+@keyframes pb{0%,100%{box-shadow:0 -3px 16px var(--ac)66}50%{box-shadow:0 -3px 28px var(--ac)cc}}
+@keyframes wv{0%,100%{height:4px}50%{height:14px}}
+
+#topbar{position:fixed;top:0;left:0;right:0;z-index:3000;background:#161b22f5;border-bottom:1px solid #30363d;padding:10px 14px;display:flex;align-items:center;gap:8px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.logo{font-size:.85rem;font-weight:800;color:#58a6ff;letter-spacing:1px;white-space:nowrap;line-height:1.1}
+.rname{font-size:.62rem;color:#6e7681;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+#gps-pill{font-size:.62rem;padding:3px 9px;border-radius:10px;border:1px solid #30363d;color:#6e7681;background:#0d1117;white-space:nowrap;transition:all .3s;cursor:pointer}
+#gps-pill.ok{color:#3fb950;border-color:#238636;background:#0d200d}
+#gps-pill.search{color:#f5c400;border-color:#9e6a03;background:#1a1400}
+#gps-pill.err{color:#f85149;border-color:#6e1c1c;background:#1f0d0d}
+#dir-pill{font-size:.62rem;padding:3px 9px;border-radius:10px;border:1px solid #30363d;color:#8b949e;background:#0d1117;white-space:nowrap;transition:all .3s}
+#dir-pill.ida{color:#58a6ff;border-color:#1f6feb;background:#0d2540}
+#dir-pill.vta{color:#c084fc;border-color:#7c3aed;background:#1a0d30}
+#vbtn{margin-left:auto;padding:8px 14px;border-radius:20px;border:none;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;min-width:72px}
+#vbtn.on{background:#238636;color:#fff}
+#vbtn.off{background:#21262d;color:#6e7681;border:1px solid #30363d}
+
+#perm-banner{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000;background:#0d1117ee;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;gap:16px}
+#perm-banner h2{font-size:1.1rem;color:#e6edf3;font-weight:700}
+#perm-banner p{font-size:.82rem;color:#8b949e;line-height:1.6}
+#perm-btn{padding:14px 28px;border-radius:24px;border:none;background:#1f6feb;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;width:100%;max-width:280px}
+#perm-btn:active{background:#388bfd}
+#perm-skip{font-size:.72rem;color:#484f58;cursor:pointer;text-decoration:underline;margin-top:4px}
+
+#cache-bar{position:fixed;left:0;right:0;z-index:2999;background:#0d2540;border-bottom:1px solid #1f6feb;padding:5px 14px;font-size:.65rem;color:#58a6ff;display:none;align-items:center;gap:10px}
+#cprog{flex:1;height:4px;background:#1f3a5f;border-radius:2px;overflow:hidden}
+#cfill{height:100%;background:#58a6ff;border-radius:2px;transition:width .3s;width:0%}
+
+#map{position:fixed;left:0;right:0}
+
+#sbar{position:fixed;left:0;right:0;z-index:2100;background:#0d2540f0;border-top:1px solid #1f6feb;border-bottom:1px solid #1f6feb;padding:5px 14px;display:none;align-items:center;gap:10px}
+#sbar.show{display:flex}
+.wv{display:flex;gap:3px;align-items:center;flex-shrink:0}
+.wb{width:3px;border-radius:2px;background:#58a6ff;animation:wv .7s ease-in-out infinite}
+.wb:nth-child(2){animation-delay:.12s}.wb:nth-child(3){animation-delay:.24s}.wb:nth-child(4){animation-delay:.36s}
+#stxt{font-size:.68rem;color:#58a6ff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+#nstrip{position:fixed;left:0;right:0;z-index:2000;background:#0d1117dd;border-top:1px solid #21262d;padding:5px 10px;display:flex;gap:7px;overflow-x:auto;align-items:center}
+#nstrip::-webkit-scrollbar{display:none}
+.nc{flex-shrink:0;padding:3px 10px;border-radius:10px;font-size:.62rem;border:1px solid;white-space:nowrap;cursor:pointer;opacity:.75;font-weight:600}
+.nc:active{opacity:1}
+.ne{font-size:.65rem;color:#484f58;font-style:italic}
+
+#apanel{position:fixed;bottom:0;left:0;right:0;z-index:2000;background:#161b22;border-top:2px solid #30363d;padding:12px 14px 20px;--ac:#30363d;transition:border-color .4s}
+#apanel.active{animation:pb 2.5s ease-in-out 2}
+.ap1{display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap}
+#abadge{padding:3px 10px;border-radius:10px;font-size:.65rem;font-weight:700;white-space:nowrap}
+#ano{font-size:.7rem;color:#8b949e;font-weight:700}
+#adtag{font-size:.62rem;padding:2px 8px;border-radius:8px;white-space:nowrap}
+#adist{font-size:.78rem;font-weight:700;margin-left:auto;white-space:nowrap;transition:color .3s}
+#aname{font-size:.88rem;font-weight:600;color:#e6edf3;line-height:1.3;margin-bottom:4px}
+#aefecto{font-size:.72rem;color:#8b949e;line-height:1.35;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#arec{font-size:.74rem;color:#f5c400;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+#spdbox{position:fixed;z-index:2500;background:#161b22ee;border:1px solid #30363d;border-radius:10px;padding:7px 11px;text-align:center}
+#spdv{font-size:1.5rem;font-weight:800;line-height:1}
+#spdu{font-size:.55rem;color:#6e7681;margin-top:1px}
+#hdg{font-size:1rem;display:block;margin-top:2px;transition:transform .6s}
+#rebtn{position:fixed;z-index:2500;background:#161b22;border:1px solid #30363d;border-radius:50%;width:42px;height:42px;font-size:1.2rem;cursor:pointer;color:#58a6ff;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+
+<div id="perm-banner">
+  <div style="font-size:2.5rem">📍</div>
+  <h2>HAZID · Sistema de Alertas</h2>
+  <p>Av. Intendente Coronel Ávalos · Tramo I<br><br>Para recibir alertas automáticas de peligros, esta app necesita acceder a tu <strong>ubicación GPS</strong>.</p>
+  <button id="perm-btn" onclick="requestPermissions()">Activar GPS y Voz</button>
+  <span id="perm-skip" onclick="skipPerms()">Continuar sin GPS (solo mapa)</span>
+</div>
+
+<div id="topbar">
+  <div><div class="logo">IMSEG · HAZID</div><div class="rname">Av. Intendente Coronel Ávalos · Tramo I</div></div>
+  <div id="gps-pill" onclick="requestPermissions()">⏳ GPS...</div>
+  <div id="dir-pill">↕ —</div>
+  <button id="vbtn" class="off" onclick="toggleVoice()">🔇 Voz</button>
+</div>
+
+<div id="cache-bar">
+  <span id="ctxt">📥 Guardando mapa offline...</span>
+  <div id="cprog"><div id="cfill"></div></div>
+  <span id="cpct">0%</span>
+</div>
+
+<div id="map"></div>
+<div id="sbar"><div class="wv"><div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div></div><div id="stxt"></div></div>
+<div id="nstrip"><span class="ne">Activar GPS para comenzar</span></div>
+
+<div id="apanel">
+  <div class="ap1">
+    <span id="abadge" style="background:#21262d;color:#6e7681;border:1px solid #30363d">— SIN ALERTAS</span>
+    <span id="ano"></span><span id="adtag"></span><span id="adist"></span>
+  </div>
+  <div id="aname" style="color:#484f58">Sistema de alertas HAZID · 6 peligros registrados</div>
+  <div id="aefecto" style="color:#484f58">Av. Intendente Coronel Ávalos · Tramo I</div>
+  <div id="arec"></div>
+</div>
+
+<div id="spdbox"><div id="spdv" style="color:#e6edf3">—</div><div id="spdu">km/h</div><span id="hdg">↑</span></div>
+<button id="rebtn" title="Centrar">📍</button>
+
+<script>
+const RISKS=[{"no":1,"lat":-34.52081,"lon":-58.51968,"riesgo":16,"dir":"Ida","peligro":"Cruce de arterias con senda peatonal","efecto":"Atropello de personas","recs":"Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar.","alert":"¡Precaución! Peligro 1. Cruce de arterias con senda peatonal. Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar..","color":"#ff2d2d","bg":"rgba(255,45,45,0.15)","label":"ALTO","ruta":"Avenida Intendente Coronel Ávalos."},{"no":2,"lat":-34.52143,"lon":-58.51925,"riesgo":12,"dir":"Ida","peligro":"Ingreso de arteria lateral","efecto":"Colisiones laterales","recs":"Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar.","alert":"Atención. Peligro 2. Ingreso de arteria lateral. Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar..","color":"#ff7c00","bg":"rgba(255,124,0,0.15)","label":"MODERADO","ruta":"Avenida Intendente Coronel Ávalos."},{"no":3,"lat":-34.52203,"lon":-58.51887,"riesgo":12,"dir":"Ida","peligro":"Ingreso de arteria lateral","efecto":"Colisiones laterales","recs":"Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar.","alert":"Atención. Peligro 3. Ingreso de arteria lateral. Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar..","color":"#ff7c00","bg":"rgba(255,124,0,0.15)","label":"MODERADO","ruta":"Avenida Intendente Coronel Ávalos."},{"no":4,"lat":-34.52234,"lon":-58.51866,"riesgo":12,"dir":"Ida","peligro":"Ingreso de arteria lateral","efecto":"Colisiones laterales","recs":"Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar.","alert":"Atención. Peligro 4. Ingreso de arteria lateral. Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar..","color":"#ff7c00","bg":"rgba(255,124,0,0.15)","label":"MODERADO","ruta":"Avenida Intendente Coronel Ávalos."},{"no":5,"lat":-34.5228,"lon":-58.51829,"riesgo":9,"dir":"Ida","peligro":"Ingreso a establecimiento","efecto":"Colisiones por alcance y laterales","recs":"Evitar maniobras de adelantamiento cerca de accesos o salidas visibles.. Ceder el paso a peatones.. Mantener distancia de seguridad, especialmente detrás de vehículos de carga que puedan frenar o girar inesperadamente.","alert":"Aviso. Peligro 5. Ingreso a establecimiento. Evitar maniobras de adelantamiento cerca de accesos o salidas visibles.. Ceder el paso a peatones.. Mantener distancia de seguridad, especialmente detrás de vehículos de carga que puedan frenar o girar inesperadamente..","color":"#f5c400","bg":"rgba(245,196,0,0.15)","label":"BAJO","ruta":"Avenida Intendente Coronel Ávalos."},{"no":6,"lat":-34.52379,"lon":-58.51749,"riesgo":16,"dir":"Ida","peligro":"Cruce de arterias con senda peatonal","efecto":"Atropello de personas","recs":"Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar.","alert":"¡Precaución! Peligro 6. Cruce de arterias con senda peatonal. Elevar la atención ante la presencia de peatones.. Evitar maniobras bruscas o adelantamientos.. Anticipar y señalizar en caso de girar..","color":"#ff2d2d","bg":"rgba(255,45,45,0.15)","label":"ALTO","ruta":"Avenida Intendente Coronel Ávalos."}];
+const TILES=["https://d.basemaps.cartocdn.com/dark_all/14/5528/9867.png", "https://a.basemaps.cartocdn.com/dark_all/14/5528/9868.png", "https://a.basemaps.cartocdn.com/dark_all/14/5529/9867.png", "https://b.basemaps.cartocdn.com/dark_all/14/5529/9868.png", "https://c.basemaps.cartocdn.com/dark_all/15/11056/19734.png", "https://d.basemaps.cartocdn.com/dark_all/15/11056/19735.png", "https://a.basemaps.cartocdn.com/dark_all/15/11056/19736.png", "https://b.basemaps.cartocdn.com/dark_all/15/11056/19737.png", "https://d.basemaps.cartocdn.com/dark_all/15/11057/19734.png", "https://a.basemaps.cartocdn.com/dark_all/15/11057/19735.png", "https://b.basemaps.cartocdn.com/dark_all/15/11057/19736.png", "https://c.basemaps.cartocdn.com/dark_all/15/11057/19737.png", "https://a.basemaps.cartocdn.com/dark_all/15/11058/19734.png", "https://b.basemaps.cartocdn.com/dark_all/15/11058/19735.png", "https://c.basemaps.cartocdn.com/dark_all/15/11058/19736.png", "https://d.basemaps.cartocdn.com/dark_all/15/11058/19737.png", "https://a.basemaps.cartocdn.com/dark_all/16/22112/39468.png", "https://b.basemaps.cartocdn.com/dark_all/16/22112/39469.png", "https://c.basemaps.cartocdn.com/dark_all/16/22112/39470.png", "https://d.basemaps.cartocdn.com/dark_all/16/22112/39471.png", "https://a.basemaps.cartocdn.com/dark_all/16/22112/39472.png", "https://b.basemaps.cartocdn.com/dark_all/16/22112/39473.png", "https://c.basemaps.cartocdn.com/dark_all/16/22112/39474.png", "https://b.basemaps.cartocdn.com/dark_all/16/22113/39468.png", "https://c.basemaps.cartocdn.com/dark_all/16/22113/39469.png", "https://d.basemaps.cartocdn.com/dark_all/16/22113/39470.png", "https://a.basemaps.cartocdn.com/dark_all/16/22113/39471.png", "https://b.basemaps.cartocdn.com/dark_all/16/22113/39472.png", "https://c.basemaps.cartocdn.com/dark_all/16/22113/39473.png", "https://d.basemaps.cartocdn.com/dark_all/16/22113/39474.png", "https://c.basemaps.cartocdn.com/dark_all/16/22114/39468.png", "https://d.basemaps.cartocdn.com/dark_all/16/22114/39469.png", "https://a.basemaps.cartocdn.com/dark_all/16/22114/39470.png", "https://b.basemaps.cartocdn.com/dark_all/16/22114/39471.png", "https://c.basemaps.cartocdn.com/dark_all/16/22114/39472.png", "https://d.basemaps.cartocdn.com/dark_all/16/22114/39473.png", "https://a.basemaps.cartocdn.com/dark_all/16/22114/39474.png", "https://d.basemaps.cartocdn.com/dark_all/16/22115/39468.png", "https://a.basemaps.cartocdn.com/dark_all/16/22115/39469.png", "https://b.basemaps.cartocdn.com/dark_all/16/22115/39470.png", "https://c.basemaps.cartocdn.com/dark_all/16/22115/39471.png", "https://d.basemaps.cartocdn.com/dark_all/16/22115/39472.png", "https://a.basemaps.cartocdn.com/dark_all/16/22115/39473.png", "https://b.basemaps.cartocdn.com/dark_all/16/22115/39474.png", "https://a.basemaps.cartocdn.com/dark_all/16/22116/39468.png", "https://b.basemaps.cartocdn.com/dark_all/16/22116/39469.png", "https://c.basemaps.cartocdn.com/dark_all/16/22116/39470.png", "https://d.basemaps.cartocdn.com/dark_all/16/22116/39471.png", "https://a.basemaps.cartocdn.com/dark_all/16/22116/39472.png", "https://b.basemaps.cartocdn.com/dark_all/16/22116/39473.png", "https://c.basemaps.cartocdn.com/dark_all/16/22116/39474.png", "https://b.basemaps.cartocdn.com/dark_all/16/22117/39468.png", "https://c.basemaps.cartocdn.com/dark_all/16/22117/39469.png", "https://d.basemaps.cartocdn.com/dark_all/16/22117/39470.png", "https://a.basemaps.cartocdn.com/dark_all/16/22117/39471.png", "https://b.basemaps.cartocdn.com/dark_all/16/22117/39472.png", "https://c.basemaps.cartocdn.com/dark_all/16/22117/39473.png", "https://d.basemaps.cartocdn.com/dark_all/16/22117/39474.png", "https://c.basemaps.cartocdn.com/dark_all/17/44225/78937.png", "https://d.basemaps.cartocdn.com/dark_all/17/44225/78938.png", "https://a.basemaps.cartocdn.com/dark_all/17/44225/78939.png", "https://b.basemaps.cartocdn.com/dark_all/17/44225/78940.png", "https://c.basemaps.cartocdn.com/dark_all/17/44225/78941.png", "https://d.basemaps.cartocdn.com/dark_all/17/44225/78942.png", "https://a.basemaps.cartocdn.com/dark_all/17/44225/78943.png", "https://b.basemaps.cartocdn.com/dark_all/17/44225/78944.png", "https://c.basemaps.cartocdn.com/dark_all/17/44225/78945.png", "https://d.basemaps.cartocdn.com/dark_all/17/44225/78946.png", "https://a.basemaps.cartocdn.com/dark_all/17/44225/78947.png", "https://b.basemaps.cartocdn.com/dark_all/17/44225/78948.png", "https://d.basemaps.cartocdn.com/dark_all/17/44226/78937.png", "https://a.basemaps.cartocdn.com/dark_all/17/44226/78938.png", "https://b.basemaps.cartocdn.com/dark_all/17/44226/78939.png", "https://c.basemaps.cartocdn.com/dark_all/17/44226/78940.png", "https://d.basemaps.cartocdn.com/dark_all/17/44226/78941.png", "https://a.basemaps.cartocdn.com/dark_all/17/44226/78942.png", "https://b.basemaps.cartocdn.com/dark_all/17/44226/78943.png", "https://c.basemaps.cartocdn.com/dark_all/17/44226/78944.png", "https://d.basemaps.cartocdn.com/dark_all/17/44226/78945.png", "https://a.basemaps.cartocdn.com/dark_all/17/44226/78946.png", "https://b.basemaps.cartocdn.com/dark_all/17/44226/78947.png", "https://c.basemaps.cartocdn.com/dark_all/17/44226/78948.png", "https://a.basemaps.cartocdn.com/dark_all/17/44227/78937.png", "https://b.basemaps.cartocdn.com/dark_all/17/44227/78938.png", "https://c.basemaps.cartocdn.com/dark_all/17/44227/78939.png", "https://d.basemaps.cartocdn.com/dark_all/17/44227/78940.png", "https://a.basemaps.cartocdn.com/dark_all/17/44227/78941.png", "https://b.basemaps.cartocdn.com/dark_all/17/44227/78942.png", "https://c.basemaps.cartocdn.com/dark_all/17/44227/78943.png", "https://d.basemaps.cartocdn.com/dark_all/17/44227/78944.png", "https://a.basemaps.cartocdn.com/dark_all/17/44227/78945.png", "https://b.basemaps.cartocdn.com/dark_all/17/44227/78946.png", "https://c.basemaps.cartocdn.com/dark_all/17/44227/78947.png", "https://d.basemaps.cartocdn.com/dark_all/17/44227/78948.png", "https://b.basemaps.cartocdn.com/dark_all/17/44228/78937.png", "https://c.basemaps.cartocdn.com/dark_all/17/44228/78938.png", "https://d.basemaps.cartocdn.com/dark_all/17/44228/78939.png", "https://a.basemaps.cartocdn.com/dark_all/17/44228/78940.png", "https://b.basemaps.cartocdn.com/dark_all/17/44228/78941.png", "https://c.basemaps.cartocdn.com/dark_all/17/44228/78942.png", "https://d.basemaps.cartocdn.com/dark_all/17/44228/78943.png", "https://a.basemaps.cartocdn.com/dark_all/17/44228/78944.png", "https://b.basemaps.cartocdn.com/dark_all/17/44228/78945.png", "https://c.basemaps.cartocdn.com/dark_all/17/44228/78946.png", "https://d.basemaps.cartocdn.com/dark_all/17/44228/78947.png", "https://a.basemaps.cartocdn.com/dark_all/17/44228/78948.png", "https://c.basemaps.cartocdn.com/dark_all/17/44229/78937.png", "https://d.basemaps.cartocdn.com/dark_all/17/44229/78938.png", "https://a.basemaps.cartocdn.com/dark_all/17/44229/78939.png", "https://b.basemaps.cartocdn.com/dark_all/17/44229/78940.png", "https://c.basemaps.cartocdn.com/dark_all/17/44229/78941.png", "https://d.basemaps.cartocdn.com/dark_all/17/44229/78942.png", "https://a.basemaps.cartocdn.com/dark_all/17/44229/78943.png", "https://b.basemaps.cartocdn.com/dark_all/17/44229/78944.png", "https://c.basemaps.cartocdn.com/dark_all/17/44229/78945.png", "https://d.basemaps.cartocdn.com/dark_all/17/44229/78946.png", "https://a.basemaps.cartocdn.com/dark_all/17/44229/78947.png", "https://b.basemaps.cartocdn.com/dark_all/17/44229/78948.png", "https://d.basemaps.cartocdn.com/dark_all/17/44230/78937.png", "https://a.basemaps.cartocdn.com/dark_all/17/44230/78938.png", "https://b.basemaps.cartocdn.com/dark_all/17/44230/78939.png", "https://c.basemaps.cartocdn.com/dark_all/17/44230/78940.png", "https://d.basemaps.cartocdn.com/dark_all/17/44230/78941.png", "https://a.basemaps.cartocdn.com/dark_all/17/44230/78942.png", "https://b.basemaps.cartocdn.com/dark_all/17/44230/78943.png", "https://c.basemaps.cartocdn.com/dark_all/17/44230/78944.png", "https://d.basemaps.cartocdn.com/dark_all/17/44230/78945.png", "https://a.basemaps.cartocdn.com/dark_all/17/44230/78946.png", "https://b.basemaps.cartocdn.com/dark_all/17/44230/78947.png", "https://c.basemaps.cartocdn.com/dark_all/17/44230/78948.png", "https://a.basemaps.cartocdn.com/dark_all/17/44231/78937.png", "https://b.basemaps.cartocdn.com/dark_all/17/44231/78938.png", "https://c.basemaps.cartocdn.com/dark_all/17/44231/78939.png", "https://d.basemaps.cartocdn.com/dark_all/17/44231/78940.png", "https://a.basemaps.cartocdn.com/dark_all/17/44231/78941.png", "https://b.basemaps.cartocdn.com/dark_all/17/44231/78942.png", "https://c.basemaps.cartocdn.com/dark_all/17/44231/78943.png", "https://d.basemaps.cartocdn.com/dark_all/17/44231/78944.png", "https://a.basemaps.cartocdn.com/dark_all/17/44231/78945.png", "https://b.basemaps.cartocdn.com/dark_all/17/44231/78946.png", "https://c.basemaps.cartocdn.com/dark_all/17/44231/78947.png", "https://d.basemaps.cartocdn.com/dark_all/17/44231/78948.png", "https://b.basemaps.cartocdn.com/dark_all/17/44232/78937.png", "https://c.basemaps.cartocdn.com/dark_all/17/44232/78938.png", "https://d.basemaps.cartocdn.com/dark_all/17/44232/78939.png", "https://a.basemaps.cartocdn.com/dark_all/17/44232/78940.png", "https://b.basemaps.cartocdn.com/dark_all/17/44232/78941.png", "https://c.basemaps.cartocdn.com/dark_all/17/44232/78942.png", "https://d.basemaps.cartocdn.com/dark_all/17/44232/78943.png", "https://a.basemaps.cartocdn.com/dark_all/17/44232/78944.png", "https://b.basemaps.cartocdn.com/dark_all/17/44232/78945.png", "https://c.basemaps.cartocdn.com/dark_all/17/44232/78946.png", "https://d.basemaps.cartocdn.com/dark_all/17/44232/78947.png", "https://a.basemaps.cartocdn.com/dark_all/17/44232/78948.png", "https://c.basemaps.cartocdn.com/dark_all/17/44233/78937.png", "https://d.basemaps.cartocdn.com/dark_all/17/44233/78938.png", "https://a.basemaps.cartocdn.com/dark_all/17/44233/78939.png", "https://b.basemaps.cartocdn.com/dark_all/17/44233/78940.png", "https://c.basemaps.cartocdn.com/dark_all/17/44233/78941.png", "https://d.basemaps.cartocdn.com/dark_all/17/44233/78942.png", "https://a.basemaps.cartocdn.com/dark_all/17/44233/78943.png", "https://b.basemaps.cartocdn.com/dark_all/17/44233/78944.png", "https://c.basemaps.cartocdn.com/dark_all/17/44233/78945.png", "https://d.basemaps.cartocdn.com/dark_all/17/44233/78946.png", "https://a.basemaps.cartocdn.com/dark_all/17/44233/78947.png", "https://b.basemaps.cartocdn.com/dark_all/17/44233/78948.png", "https://d.basemaps.cartocdn.com/dark_all/17/44234/78937.png", "https://a.basemaps.cartocdn.com/dark_all/17/44234/78938.png", "https://b.basemaps.cartocdn.com/dark_all/17/44234/78939.png", "https://c.basemaps.cartocdn.com/dark_all/17/44234/78940.png", "https://d.basemaps.cartocdn.com/dark_all/17/44234/78941.png", "https://a.basemaps.cartocdn.com/dark_all/17/44234/78942.png", "https://b.basemaps.cartocdn.com/dark_all/17/44234/78943.png", "https://c.basemaps.cartocdn.com/dark_all/17/44234/78944.png", "https://d.basemaps.cartocdn.com/dark_all/17/44234/78945.png", "https://a.basemaps.cartocdn.com/dark_all/17/44234/78946.png", "https://b.basemaps.cartocdn.com/dark_all/17/44234/78947.png", "https://c.basemaps.cartocdn.com/dark_all/17/44234/78948.png"];
+const IDA_B=165;
+const VTA_B=345;
+const ADIST=300, REPT=90000;
+const CNAME='hazid-avalos-v1';
+
+// ── Layout ──────────────────────────────────────────────────────
+function layout(){
+  const topH=document.getElementById('topbar').offsetHeight;
+  const cEl=document.getElementById('cache-bar');
+  const cH=cEl.style.display==='flex'?cEl.offsetHeight:0;
+  const panH=document.getElementById('apanel').offsetHeight;
+  const nsH=document.getElementById('nstrip').offsetHeight;
+  const sbEl=document.getElementById('sbar');
+  const sbH=sbEl.classList.contains('show')?sbEl.offsetHeight:0;
+  const mapTop=topH+cH, mapBot=panH+nsH+sbH;
+  const m=document.getElementById('map');
+  m.style.top=mapTop+'px'; m.style.bottom=mapBot+'px';
+  sbEl.style.bottom=(panH+nsH)+'px'; sbEl.style.left='0'; sbEl.style.right='0';
+  document.getElementById('nstrip').style.bottom=panH+'px';
+  document.getElementById('spdbox').style.cssText+=`;top:${mapTop+8}px;right:10px;position:fixed`;
+  document.getElementById('rebtn').style.cssText+=`;bottom:${mapBot+8}px;right:10px;position:fixed`;
+}
+layout(); window.addEventListener('resize',layout);
+
+// ── Tile Cache (no SW — works on iOS & file://) ──────────────────
+async function cacheTiles(){
+  if(!('caches' in window))return;
+  let cache; try{cache=await caches.open(CNAME);}catch(e){return;}
+  const existing=new Set((await cache.keys()).map(r=>r.url));
+  const needed=TILES.filter(u=>!existing.has(u));
+  if(!needed.length){showMsg('✅ Mapa offline listo',2500);return;}
+  const bar=document.getElementById('cache-bar'),fill=document.getElementById('cfill'),pct=document.getElementById('cpct'),txt=document.getElementById('ctxt');
+  bar.style.display='flex';txt.textContent='📥 Guardando mapa offline ('+needed.length+' tiles)...';layout();
+  let done=0;
+  for(let i=0;i<needed.length;i+=6){
+    await Promise.all(needed.slice(i,i+6).map(async u=>{
+      try{const r=await fetch(u);if(r.ok)await cache.put(u,r);}catch(e){}
+      done++;const p=Math.round(done/needed.length*100);
+      fill.style.width=p+'%';pct.textContent=p+'%';
+    }));
+  }
+  txt.textContent='✅ Mapa disponible offline';fill.style.width='100%';pct.textContent='100%';
+  setTimeout(()=>{bar.style.display='none';layout();},2500);
+}
+function showMsg(msg,ms){
+  const bar=document.getElementById('cache-bar');
+  bar.style.display='flex';document.getElementById('ctxt').textContent=msg;layout();
+  setTimeout(()=>{bar.style.display='none';layout();},ms);
+}
+
+// ── Map ──────────────────────────────────────────────────────────
+const map=L.map('map',{center:[-34.522200,-58.518707],zoom:16,preferCanvas:true,zoomControl:false});
+
+// Custom tile layer that uses cache
+const TileLayer=L.TileLayer.extend({
+  createTile(coords,done){
+    const tile=document.createElement('img');
+    tile.setAttribute('role','presentation');
+    const s=['a','b','c','d'][(coords.x+coords.y)%4];
+    const url=`https://${s}.basemaps.cartocdn.com/dark_all/${coords.z}/${coords.x}/${coords.y}.png`;
+    const load=src=>{tile.onload=()=>done(null,tile);tile.onerror=()=>done(null,tile);tile.src=src;};
+    if('caches' in window){
+      caches.open(CNAME).then(c=>c.match(url).then(r=>{
+        if(r)r.blob().then(b=>load(URL.createObjectURL(b)));
+        else load(url);
+      })).catch(()=>load(url));
+    } else load(url);
+    return tile;
+  }
+});
+new TileLayer('',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:18,minZoom:13}).addTo(map);
+L.control.zoom({position:'topleft'}).addTo(map);
+
+const mkrs={};
+document.head.insertAdjacentHTML('beforeend','<style>@keyframes rp{0%{transform:scale(1);opacity:.7}100%{transform:scale(3.5);opacity:0}}</style>');
+function mkIcon(r,big,pulse){
+  const sz=big?22:14;
+  const ring=pulse?`<div style="position:absolute;inset:-8px;border-radius:50%;border:3px solid ${r.color};animation:rp 1.5s infinite;pointer-events:none"></div>`:'';
+  return L.divIcon({className:'',html:`<div style="position:relative;width:${sz}px;height:${sz}px">${ring}<div style="width:100%;height:100%;border-radius:50%;background:${r.color};border:2px solid rgba(255,255,255,.4);box-shadow:0 0 8px ${r.color}88"></div></div>`,iconAnchor:[sz/2,sz/2]});
+}
+RISKS.forEach(r=>{
+  const m=L.marker([r.lat,r.lon],{icon:mkIcon(r,false,false)}).addTo(map);
+  m.bindTooltip(`#${r.no} ${r.peligro}`,{direction:'top',offset:[0,-8]});
+  m.on('click',()=>pick(r));
+  mkrs[r.no]={m,r};
+});
+
+const leg=L.control({position:'bottomleft'});
+leg.onAdd=()=>{
+  const d=document.createElement('div');
+  d.style.cssText='background:#161b22ee;border:1px solid #30363d;border-radius:8px;padding:9px 13px;font-size:.68rem;color:#e6edf3;line-height:1.9;margin-bottom:8px';
+  d.innerHTML='<b style="display:block;margin-bottom:3px">Nivel de riesgo</b>'+[['#ff2d2d','Alto (≥16)'],['#ff7c00','Moderado (12–15)'],['#f5c400','Bajo (9–11)'],['#4caf50','Muy bajo (<9)']].map(([c,t])=>`<div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:${c}"></div>${t}</div>`).join('');
+  return d;
+};
+leg.addTo(map);
+
+// ── Permissions ──────────────────────────────────────────────────
+let voiceOn=false, gpsStarted=false;
+
+async function requestPermissions(){
+  document.getElementById('perm-banner').style.display='none';
+  // Request GPS
+  startGPS();
+  // Warm up TTS (requires user gesture — this IS the gesture)
+  if(window.speechSynthesis){
+    const u=new SpeechSynthesisUtterance(' ');
+    window.speechSynthesis.speak(u);
+    setTimeout(()=>window.speechSynthesis.cancel(),200);
+  }
+  // Activate voice automatically
+  voiceOn=true;
+  const btn=document.getElementById('vbtn');
+  btn.textContent='🔊 Voz ON'; btn.className='on';
+  // Cache tiles
+  if(navigator.onLine)cacheTiles();
+}
+
+function skipPerms(){
+  document.getElementById('perm-banner').style.display='none';
+  if(navigator.onLine)cacheTiles();
+}
+
+// ── GPS ──────────────────────────────────────────────────────────
+let userPos=null,userMkr=null,lastSpoken={},activeNo=null,following=true,detDir=null;
+
+function startGPS(){
+  if(gpsStarted)return; gpsStarted=true;
+  if(!navigator.geolocation){
+    document.getElementById('gps-pill').textContent='❌ No disponible';
+    document.getElementById('gps-pill').className='err';
+    return;
+  }
+  navigator.geolocation.watchPosition(onPos, onPosErr, {enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+}
+
+function onPos(pos){
+  const lat=pos.coords.latitude,lon=pos.coords.longitude,acc=pos.coords.accuracy,spd=pos.coords.speed,hdg=pos.coords.heading;
+  const pill=document.getElementById('gps-pill');
+  pill.textContent=`✅ ±${Math.round(acc)}m`; pill.className=acc<25?'ok':acc<80?'search':'err';
+  const kmh=spd!=null?Math.round(spd*3.6):null;
+  const sv=document.getElementById('spdv');
+  sv.textContent=kmh!=null?kmh:'—';
+  sv.style.color=kmh>60?'#ff2d2d':kmh>40?'#ff7c00':'#e6edf3';
+  let cHdg=hdg;
+  if(cHdg==null&&userPos)cHdg=brng(userPos.lat,userPos.lon,lat,lon);
+  updateDir(cHdg);
+  userPos={lat,lon,acc,speed:kmh,heading:cHdg};
+  if(!userMkr){
+    userMkr=L.circleMarker([lat,lon],{radius:9,color:'#58a6ff',fillColor:'#1f6feb',fillOpacity:1,weight:3}).addTo(map);
+    map.setView([lat,lon],17);
+  } else userMkr.setLatLng([lat,lon]);
+  if(following)map.panTo([lat,lon],{animate:true,duration:.4});
+  checkAlerts();
+}
+
+function onPosErr(err){
+  const pill=document.getElementById('gps-pill');
+  if(err.code===1){pill.textContent='❌ Sin permiso GPS';pill.className='err';}
+  else if(err.code===2){pill.textContent='⚠️ GPS no disponible';pill.className='err';}
+  else{pill.textContent='⏳ Buscando GPS...';pill.className='search';}
+}
+
+map.on('dragstart',()=>following=false);
+document.getElementById('rebtn').onclick=()=>{following=true;if(userPos)map.flyTo([userPos.lat,userPos.lon],17,{duration:.7});};
+
+// ── Direction ────────────────────────────────────────────────────
+function hav(la1,lo1,la2,lo2){const R=6371000,p1=la1*Math.PI/180,p2=la2*Math.PI/180,dp=(la2-la1)*Math.PI/180,dl=(lo2-lo1)*Math.PI/180,a=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(a));}
+function brng(la1,lo1,la2,lo2){const f1=la1*Math.PI/180,f2=la2*Math.PI/180,dl=(lo2-lo1)*Math.PI/180;return(Math.atan2(Math.sin(dl)*Math.cos(f2),Math.cos(f1)*Math.sin(f2)-Math.sin(f1)*Math.cos(f2)*Math.cos(dl))*180/Math.PI+360)%360;}
+function bdiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
+
+function updateDir(hdg){
+  if(hdg==null)return;
+  document.getElementById('hdg').style.transform=`rotate(${hdg}deg)`;
+  const dI=bdiff(hdg,IDA_B),dV=bdiff(hdg,VTA_B);
+  let nd=null; if(dI<65)nd='Ida'; else if(dV<65)nd='Vuelta';
+  if(nd&&nd!==detDir){
+    detDir=nd;
+    const pill=document.getElementById('dir-pill');
+    if(nd==='Ida'){pill.textContent='↓ IDA';pill.className='ida';}
+    else{pill.textContent='↑ VUELTA';pill.className='vta';}
+  }
+}
+
+// ── Alerts ───────────────────────────────────────────────────────
+function checkAlerts(){
+  if(!userPos)return;
+  const {lat,lon}=userPos;
+  const rel=RISKS.filter(r=>{
+    if(!detDir)return true;
+    if(hav(lat,lon,r.lat,r.lon)<500)return true;
+    return r.dir===detDir;
+  }).map(r=>{
+    const d=hav(lat,lon,r.lat,r.lon);
+    let ahead=true;
+    if(userPos.heading!=null&&d>80)ahead=bdiff(userPos.heading,brng(lat,lon,r.lat,r.lon))<110;
+    return{...r,dist:d,ahead};
+  }).filter(r=>r.dist<2000&&r.ahead).sort((a,b)=>a.dist-b.dist);
+
+  const strip=document.getElementById('nstrip');
+  strip.innerHTML='';
+  if(!rel.length){strip.innerHTML='<span class="ne">Sin peligros en 2 km</span>';showIdle();return;}
+  rel.slice(0,5).forEach(r=>{
+    const c=document.createElement('div');c.className='nc';
+    c.style.cssText=`color:${r.color};border-color:${r.color}44;background:${r.color}11`;
+    c.textContent=`#${r.no} · ${Math.round(r.dist)}m`;
+    c.onclick=()=>pick(r);strip.appendChild(c);
+  });
+  const cl=rel[0];
+  showAlert(cl,cl.dist);
+  if(cl.dist<=ADIST){
+    const now=Date.now();
+    if((now-(lastSpoken[cl.no]||0))>REPT){
+      lastSpoken[cl.no]=now;
+      const dt=cl.dist<40?'en este punto':cl.dist<120?`a ${Math.round(cl.dist)} metros`:`en ${Math.round(cl.dist/50)*50} metros`;
+      speak(`${cl.alert} ${dt}.`);
+      if(activeNo&&mkrs[activeNo])mkrs[activeNo].m.setIcon(mkIcon(mkrs[activeNo].r,false,false));
+      activeNo=cl.no; mkrs[cl.no].m.setIcon(mkIcon(cl,true,true));
+    }
+  }
+}
+
+function showAlert(r,dist){
+  const panel=document.getElementById('apanel');
+  panel.style.borderTopColor=r.color;panel.style.setProperty('--ac',r.color);panel.classList.add('active');
+  const b=document.getElementById('abadge');
+  b.textContent=`${r.label} · ${r.riesgo}`;
+  b.style.cssText=`background:${r.bg};color:${r.color};border:1px solid ${r.color}55;padding:3px 10px;border-radius:10px;font-size:.65rem;font-weight:700;white-space:nowrap`;
+  document.getElementById('ano').textContent='#'+r.no;
+  const dt=document.getElementById('adtag');
+  dt.textContent=r.dir==='Ida'?'↓ IDA':'↑ VUELTA';
+  dt.style.cssText=r.dir==='Ida'?'font-size:.62rem;padding:2px 8px;border-radius:8px;background:#0d2540;color:#58a6ff;border:1px solid #1f6feb':'font-size:.62rem;padding:2px 8px;border-radius:8px;background:#1a0d30;color:#c084fc;border:1px solid #7c3aed';
+  const de=document.getElementById('adist');
+  de.textContent=dist<30?'⚠️ AQUÍ':`${Math.round(dist)} m`;
+  de.style.color=dist<80?'#ff2d2d':dist<250?'#ff7c00':'#58a6ff';
+  document.getElementById('aname').textContent=r.peligro;
+  document.getElementById('aefecto').textContent=r.efecto;
+  document.getElementById('arec').textContent=r.recs?'→ '+r.recs:'';
+  layout();
+}
+
+function showIdle(){
+  const panel=document.getElementById('apanel');
+  panel.classList.remove('active');panel.style.borderTopColor='#30363d';
+  const b=document.getElementById('abadge');
+  b.textContent='✅'; b.style.cssText='background:#0d200d;color:#3fb950;border:1px solid #238636;padding:3px 10px;border-radius:10px;font-size:.65rem;font-weight:700';
+  document.getElementById('ano').textContent='Sin peligros cercanos';
+  ['adtag','adist','arec'].forEach(id=>document.getElementById(id).textContent='');
+  document.getElementById('aname').textContent='Zona libre de peligros registrados';
+  document.getElementById('aefecto').textContent='El sistema alertará al acercarse a un peligro';
+  layout();
+}
+
+function pick(r){
+  showAlert(r, userPos?hav(userPos.lat,userPos.lon,r.lat,r.lon):999);
+  map.flyTo([r.lat,r.lon],17,{duration:.8});following=false;
+  if(voiceOn)speak(r.alert);
+}
+
+// ── Voice ────────────────────────────────────────────────────────
+window.speechSynthesis&&window.speechSynthesis.getVoices&&window.speechSynthesis.getVoices();
+window.speechSynthesis&&(window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices());
+
+function speak(text){
+  if(!voiceOn||!window.speechSynthesis)return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(text);
+  utt.lang='es-AR';utt.rate=0.88;utt.pitch=1;utt.volume=1;
+  const vv=window.speechSynthesis.getVoices();
+  const v=vv.find(v=>v.lang==='es-AR')||vv.find(v=>v.lang.startsWith('es')&&v.name.toLowerCase().includes('argentina'))||vv.find(v=>v.lang.startsWith('es'));
+  if(v)utt.voice=v;
+  const sb=document.getElementById('sbar');
+  document.getElementById('stxt').textContent=text;
+  sb.classList.add('show');layout();
+  utt.onend=utt.onerror=()=>{sb.classList.remove('show');layout();};
+  window.speechSynthesis.speak(utt);
+}
+
+function toggleVoice(){
+  voiceOn=!voiceOn;
+  const btn=document.getElementById('vbtn');
+  btn.textContent=voiceOn?'🔊 Voz ON':'🔇 Voz';btn.className=voiceOn?'on':'off';
+  if(!voiceOn){window.speechSynthesis&&window.speechSynthesis.cancel();document.getElementById('sbar').classList.remove('show');layout();}
+}
+</script>
+</body>
+</html>
