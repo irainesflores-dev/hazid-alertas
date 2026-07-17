@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>IMSEG — Alertas Ruta Provincial N°17</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="theme-color" content="#0B0B0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  :root{
+    --gold:#C9A227; --gold-light:#E8C766; --black:#0B0B0B; --dark:#171717;
+    --white:#FFFFFF; --grey:#F4F4F2; --bajo:#7FB33B; --moderado:#D4A017; --alto:#E07B1E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{font-family:'Segoe UI', Arial, sans-serif;background:var(--grey);color:var(--black);
+       display:flex;flex-direction:column;overflow:hidden;}
+  header{
+    background:var(--black);color:var(--white);padding:10px 14px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    border-bottom:3px solid var(--gold);flex-shrink:0;
+  }
+  .logo{font-size:19px;font-weight:800;letter-spacing:.5px;}
+  .logo span{color:var(--gold);}
+  .status-pill{
+    font-size:10px;font-weight:700;padding:4px 9px;border-radius:12px;
+    background:#333;color:#ccc;white-space:nowrap;
+  }
+  .status-pill.on{background:var(--gold);color:var(--black);}
+  #map{flex:1;min-height:0;width:100%;}
+  #bottomSheet{
+    background:var(--white);border-top:2px solid var(--black);
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+    flex-shrink:0;max-height:46vh;overflow-y:auto;
+  }
+  .mode-tabs{display:flex;gap:6px;margin-bottom:10px;}
+  .mode-tab{
+    flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:var(--grey);
+    font-size:12.5px;font-weight:700;color:#555;text-align:center;cursor:pointer;
+  }
+  .mode-tab.active{background:var(--black);color:var(--gold);border-color:var(--black);}
+  .btn-row{display:flex;gap:8px;margin-bottom:8px;}
+  button{
+    font-family:inherit;font-weight:700;font-size:14px;border:none;border-radius:8px;
+    padding:13px 14px;cursor:pointer;flex:1;
+  }
+  #btnMain{background:var(--gold);color:var(--black);}
+  #btnMain.active{background:#C62828;color:#fff;}
+  #btnStop{background:var(--black);color:var(--white);flex:0 0 90px;}
+  .info-row{display:flex;justify-content:space-between;font-size:12px;color:#555;margin:8px 0;}
+  .info-row b{color:var(--black);}
+  #alertCard{
+    min-height:64px;border-radius:8px;background:var(--grey);padding:10px 12px;margin-bottom:8px;
+  }
+  .alert-empty{color:#999;font-size:12.5px;font-style:italic;}
+  .alert-active{display:flex;gap:10px;align-items:flex-start;}
+  .alert-icon{
+    width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:16px;flex-shrink:0;
+  }
+  .alert-body h3{font-size:14px;margin-bottom:3px;}
+  .alert-body p{font-size:12.5px;color:#333;line-height:1.35;}
+  .note{font-size:10.5px;color:#888;line-height:1.5;margin-top:6px;}
+  .gps-msg{font-size:11.5px;color:#a33;margin-top:4px;display:none;}
+  .car-marker{
+    background:var(--black);border:2px solid var(--gold);border-radius:50%;
+    width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;
+  }
+  .me-marker{
+    width:16px;height:16px;border-radius:50%;background:#2A7DE1;border:3px solid #fff;
+    box-shadow:0 0 0 2px rgba(42,125,225,.35);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">IM<span>SEG</span></div>
+  <span class="status-pill" id="gpsStatus">GPS inactivo</span>
+</header>
+
+<div id="map"></div>
+
+<div id="bottomSheet">
+  <div class="mode-tabs">
+    <div class="mode-tab active" id="tabGps">Modo real (GPS)</div>
+    <div class="mode-tab" id="tabDemo">Modo demo</div>
+  </div>
+
+  <div class="btn-row">
+    <button id="btnMain">Activar GPS</button>
+    <button id="btnStop">Detener</button>
+  </div>
+  <div class="gps-msg" id="gpsMsg"></div>
+
+  <div class="info-row">
+    <span>Velocidad: <b id="speedTxt">—</b></span>
+    <span>Próxima alerta: <b id="nextTxt">—</b></span>
+  </div>
+
+  <div id="alertCard"><div class="alert-empty">Activá el GPS para empezar a recibir alertas de voz.</div></div>
+
+  <p class="note">La app funciona con la pantalla bloqueada y sin conexión, una vez que se cargó por primera vez con internet. El modo demo simula un recorrido sin necesidad de manejar.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ================= DATA ================= */
+const hazards = [
+  {numero:1,  lat:-38.930798, lon:-69.207706, tipo:"Rotonda", cat:"bajo", voz:"Rotonda. Ceda el paso y reduzca la velocidad."},
+  {numero:2,  lat:-38.920464, lon:-69.197794, tipo:"Curva a la izquierda en zona escolar", cat:"moderado", voz:"Curva a la izquierda en zona escolar. Reduzca la velocidad, no invada el carril contrario y eleve la atención ante la presencia de peatones."},
+  {numero:3,  lat:-38.871247, lon:-69.165528, tipo:"Dársena de ingreso a Aguada Villanueva", cat:"moderado", voz:"Dársena de ingreso. Riesgo de vuelco, reduzca la velocidad y observe ambos lados."},
+  {numero:4,  lat:-38.609928, lon:-69.051928, tipo:"Curva a la izquierda en descenso con visibilidad reducida", cat:"moderado", voz:"Curva en descenso con visibilidad reducida. Reduzca la velocidad y mantenga el centro del carril."},
+  {numero:5,  lat:-38.580069, lon:-69.035531, tipo:"Cruce Zausal Bonito", cat:"moderado", voz:"Cruce Zausal Bonito. Anticipe y señalice al girar."},
+  {numero:6,  lat:-38.571781, lon:-69.029369, tipo:"Curva y contracurva", cat:"moderado", voz:"Curva y contracurva. Mantenga el centro del carril, no invada el carril contrario."},
+  {numero:7,  lat:-38.451853, lon:-68.929786, tipo:"Cruce con Ruta 51", cat:"alto", voz:"Cruce con Ruta 51. Riesgo alto de colisión, reduzca la velocidad y ceda el paso."},
+  {numero:8,  lat:-38.444452, lon:-68.939761, tipo:"Ingreso a dique", cat:"bajo", voz:"Ingreso a dique. Reduzca la velocidad con anticipación y mantenga distancia de seguridad."},
+  {numero:9,  lat:-38.359436, lon:-68.856542, tipo:"Inicio de zona urbana de Añelo", cat:"moderado", voz:"Inicio de zona urbana de Añelo. Reduzca la velocidad y extreme la atención."},
+  {numero:10, lat:-38.350894, lon:-68.791544, tipo:"Rotonda con Ruta Nacional 7", cat:"bajo", voz:"Rotonda con Ruta Nacional 7. Ceda el paso y reduzca la velocidad."}
+];
+const colorMap = {"bajo":"#7FB33B","moderado":"#D4A017","alto":"#E07B1E"};
+
+/* ================= SERVICE WORKER (offline) ================= */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  });
+}
+
+/* ================= MAP ================= */
+const map = L.map('map', {zoomControl:true}).setView([-38.65,-69.0], 9);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
+}).addTo(map);
+
+const routeCoords = hazards.map(h=>[h.lat,h.lon]);
+L.polyline(routeCoords, {color:'#C9A227', weight:4, dashArray:'10,10', opacity:0.8}).addTo(map);
+
+const markers = {};
+hazards.forEach(h=>{
+  const m = L.circleMarker([h.lat,h.lon], {radius:7,color:'#0B0B0B',weight:1.5,fillColor:colorMap[h.cat],fillOpacity:0.9}).addTo(map);
+  m.bindTooltip(`Punto ${h.numero} · ${h.tipo}`, {direction:'top'});
+  markers[h.numero] = m;
+});
+map.fitBounds(routeCoords, {padding:[20,20]});
+
+const carIcon = L.divIcon({className:'', html:'<div class="car-marker">🚗</div>', iconSize:[22,22], iconAnchor:[11,11]});
+const meIcon  = L.divIcon({className:'', html:'<div class="me-marker"></div>', iconSize:[16,16], iconAnchor:[8,8]});
+let carMarker = null;
+let followMode = true;
+map.on('dragstart', ()=>{ followMode = false; });
+
+/* ================= UTIL ================= */
+function haversine(a,b){
+  const R=6371000;
+  const dLat=(b[0]-a[0])*Math.PI/180, dLon=(b[1]-a[1])*Math.PI/180;
+  const lat1=a[0]*Math.PI/180, lat2=b[0]*Math.PI/180;
+  const x=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+/* ================= SPEECH (clara, sin superposición) ================= */
+let speechQueue = [], speaking = false;
+function queueSpeech(text){ speechQueue.push(text); processQueue(); }
+function processQueue(){
+  if(speaking || speechQueue.length===0) return;
+  speaking = true;
+  const u = new SpeechSynthesisUtterance(speechQueue.shift());
+  u.lang='es-AR'; u.rate=0.88; u.pitch=1;
+  u.onend = ()=>{ speaking=false; setTimeout(processQueue,300); };
+  u.onerror = ()=>{ speaking=false; processQueue(); };
+  window.speechSynthesis.speak(u);
+}
+
+/* ================= ALERTAS (agrupadas, sin repetir en el mismo paso) ================= */
+const ALERT_RADIUS = 200;   // metros: distancia a la que se dispara la alerta
+const GROUP_RADIUS = 80;    // metros: si dos peligros están así de cerca, se avisa uno solo
+const RESET_RADIUS = 400;   // metros: al alejarse, la alerta puede volver a sonar más adelante
+let alertedNow = new Set();
+
+function showAlert(h){
+  const card = document.getElementById('alertCard');
+  card.innerHTML = `
+    <div class="alert-active">
+      <div class="alert-icon" style="background:${colorMap[h.cat]}">⚠</div>
+      <div class="alert-body"><h3>${h.tipo}</h3><p>${h.voz}</p></div>
+    </div>`;
+  const m = markers[h.numero];
+  if(m){ m.setStyle({radius:11,weight:3}); setTimeout(()=>m.setStyle({radius:7,weight:1.5}), 2000); }
+}
+
+function checkHazards(pos){
+  let nearestFree = null, nearestFreeDist = Infinity;
+  hazards.forEach(h=>{
+    const d = haversine(pos, [h.lat, h.lon]);
+    if(d > RESET_RADIUS) alertedNow.delete(h.numero);
+    if(d < nearestFreeDist){ nearestFreeDist = d; nearestFree = h; }
+  });
+
+  document.getElementById('nextTxt').textContent = nearestFree
+    ? `${nearestFree.tipo} (${(nearestFreeDist/1000).toFixed(1)} km)` : '—';
+
+  hazards.forEach(h=>{
+    const d = haversine(pos, [h.lat, h.lon]);
+    if(d <= ALERT_RADIUS && !alertedNow.has(h.numero)){
+      const groupedAlready = [...alertedNow].some(n=>{
+        const other = hazards.find(x=>x.numero===n);
+        return other && haversine([h.lat,h.lon],[other.lat,other.lon]) <= GROUP_RADIUS;
+      });
+      alertedNow.add(h.numero);
+      if(!groupedAlready){
+        queueSpeech(h.voz);
+        showAlert(h);
+      }
+    }
+  });
+}
+
+/* ================= WAKE LOCK (mantener pantalla activa) ================= */
+let wakeLock = null;
+let silentAudioCtx = null;
+async function keepAwake(){
+  try{
+    wakeLock = await navigator.wakeLock.request('screen');
+  }catch(e){
+    try{
+      silentAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      const osc = silentAudioCtx.createOscillator();
+      const gain = silentAudioCtx.createGain();
+      gain.gain.value = 0.00001;
+      osc.connect(gain).connect(silentAudioCtx.destination);
+      osc.start();
+    }catch(e2){}
+  }
+}
+function releaseAwake(){
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+  if(silentAudioCtx){ silentAudioCtx.close().catch(()=>{}); silentAudioCtx = null; }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && (gpsActive || demoRunning)) keepAwake();
+});
+
+/* ================= MODO GPS REAL ================= */
+let gpsActive = false;
+let watchId = null;
+
+function startGps(){
+  if(!('geolocation' in navigator)){
+    showGpsMsg('Este navegador no soporta geolocalización.');
+    return;
+  }
+  gpsActive = true;
+  keepAwake();
+  document.getElementById('gpsStatus').textContent = 'GPS activo';
+  document.getElementById('gpsStatus').classList.add('on');
+  document.getElementById('btnMain').textContent = 'GPS activado';
+  document.getElementById('btnMain').classList.add('active');
+
+  if(!carMarker) carMarker = L.marker(routeCoords[0], {icon:meIcon}).addTo(map);
+  else carMarker.setIcon(meIcon);
+
+  watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
+    enableHighAccuracy:true, maximumAge:2000, timeout:10000
+  });
+}
+function onPosition(pos){
+  const p = [pos.coords.latitude, pos.coords.longitude];
+  carMarker.setLatLng(p);
+  if(followMode) map.panTo(p);
+  const speedKmh = pos.coords.speed ? Math.round(pos.coords.speed*3.6) : null;
+  document.getElementById('speedTxt').textContent = speedKmh!==null ? `${speedKmh} km/h` : '—';
+  checkHazards(p);
+}
+function onPositionError(err){
+  showGpsMsg('No se pudo acceder a la ubicación. Revisá los permisos de GPS del navegador.');
+}
+function showGpsMsg(msg){
+  const el = document.getElementById('gpsMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/* ================= MODO DEMO (simulación, sin GPS real) ================= */
+let demoRunning = false;
+let demoAnim = null;
+let demoTraveled = 0;
+let demoLastTs = null;
+const cumGeom = [0];
+for(let i=1;i<routeCoords.length;i++) cumGeom.push(cumGeom[i-1]+haversine(routeCoords[i-1],routeCoords[i]));
+const demoTotalDist = cumGeom[cumGeom.length-1];
+const DEMO_PACE = 90;
+
+function segIndex(dist){ for(let i=1;i<cumGeom.length;i++){ if(dist<=cumGeom[i]) return i-1; } return cumGeom.length-2; }
+function interpolate(dist){
+  const i = segIndex(dist);
+  const t = cumGeom[i+1]>cumGeom[i] ? (dist-cumGeom[i])/(cumGeom[i+1]-cumGeom[i]) : 0;
+  const a = routeCoords[i], b = routeCoords[i+1];
+  return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+}
+let demoPause = 0;
+function demoStep(ts){
+  if(!demoRunning) return;
+  if(demoLastTs===null) demoLastTs = ts;
+  const dt = (ts-demoLastTs)/1000;
+  demoLastTs = ts;
+
+  if(demoPause > 0){ demoPause -= dt; demoAnim = requestAnimationFrame(demoStep); return; }
+
+  const speed = demoTotalDist/DEMO_PACE;
+  demoTraveled += speed*dt;
+  if(demoTraveled >= demoTotalDist){ demoTraveled = demoTotalDist; stopDemo(true); return; }
+
+  const pos = interpolate(demoTraveled);
+  carMarker.setLatLng(pos);
+  if(followMode) map.panTo(pos);
+  document.getElementById('speedTxt').textContent = '70 km/h (sim.)';
+
+  const before = alertedNow.size;
+  checkHazards(pos);
+  if(alertedNow.size > before) demoPause = 5.5;
+
+  demoAnim = requestAnimationFrame(demoStep);
+}
+function startDemo(){
+  demoRunning = true;
+  keepAwake();
+  document.getElementById('gpsStatus').textContent = 'Demo en curso';
+  document.getElementById('gpsStatus').classList.add('on');
+  document.getElementById('btnMain').textContent = 'Demo en curso';
+  document.getElementById('btnMain').classList.add('active');
+  if(!carMarker) carMarker = L.marker(routeCoords[0], {icon:carIcon}).addTo(map);
+  else carMarker.setIcon(carIcon);
+  demoLastTs = null;
+  demoAnim = requestAnimationFrame(demoStep);
+}
+function stopDemo(finished){
+  demoRunning = false;
+  if(demoAnim) cancelAnimationFrame(demoAnim);
+  releaseAwake();
+  document.getElementById('gpsStatus').textContent = 'GPS inactivo';
+  document.getElementById('gpsStatus').classList.remove('on');
+  document.getElementById('btnMain').textContent = 'Iniciar demo';
+  document.getElementById('btnMain').classList.remove('active');
+  if(finished){
+    document.getElementById('alertCard').innerHTML = '<div class="alert-empty">Demo finalizada.</div>';
+  }
+}
+
+/* ================= CONTROLES ================= */
+let mode = 'gps'; // 'gps' | 'demo'
+const tabGps = document.getElementById('tabGps');
+const tabDemo = document.getElementById('tabDemo');
+const btnMain = document.getElementById('btnMain');
+const btnStop = document.getElementById('btnStop');
+
+function setMode(m){
+  mode = m;
+  stopAll();
+  tabGps.classList.toggle('active', m==='gps');
+  tabDemo.classList.toggle('active', m==='demo');
+  btnMain.textContent = m==='gps' ? 'Activar GPS' : 'Iniciar demo';
+  document.getElementById('gpsMsg').style.display = 'none';
+  document.getElementById('alertCard').innerHTML = '<div class="alert-empty">'+
+    (m==='gps' ? 'Activá el GPS para empezar a recibir alertas de voz.' : 'Iniciá la demo para simular un recorrido.')+'</div>';
+}
+function stopAll(){
+  if(gpsActive){
+    gpsActive = false;
+    if(watchId!==null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  if(demoRunning) stopDemo(false);
+  releaseAwake();
+  window.speechSynthesis.cancel();
+  speaking = false; speechQueue = [];
+  alertedNow.clear();
+  document.getElementById('gpsStatus').textContent = 'GPS inactivo';
+  document.getElementById('gpsStatus').classList.remove('on');
+  document.getElementById('btnMain').classList.remove('active');
+  document.getElementById('speedTxt').textContent = '—';
+  document.getElementById('nextTxt').textContent = '—';
+}
+
+tabGps.addEventListener('click', ()=>setMode('gps'));
+tabDemo.addEventListener('click', ()=>setMode('demo'));
+btnMain.addEventListener('click', ()=>{
+  followMode = true;
+  if(mode==='gps'){ if(!gpsActive) startGps(); }
+  else { if(!demoRunning) startDemo(); }
+});
+btnStop.addEventListener('click', stopAll);
+</script>
+</body>
+</html>
